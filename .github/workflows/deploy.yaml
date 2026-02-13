@@ -1,4 +1,5 @@
 name: Deploy to Termux
+
 on:
   push:
     branches: [ main ]
@@ -12,12 +13,12 @@ jobs:
     - name: Deploy via SSH
       uses: appleboy/ssh-action@v1.0.3
       with:
-        host: ${{ secrets.PUBLIC_IP }}     # Внешний IP роутера
-        port: ${{ secrets.PORT }}           # Проброшенный порт (например 8022)
-        username: ${{ secrets.USERNAME }}
-        key: ${{ secrets.SSH_PRIVATE_KEY }}
+        host: ${{ secrets.TERMUX_HOST }}        # IP телефона (192.168.1.138)
+        port: ${{ secrets.TERMUX_PORT }}        # 8022
+        username: ${{ secrets.TERMUX_USER }}    # u0_a352
+        key: ${{ secrets.TERMUX_SSH_KEY }}      # приватный ключ
         script: |
           cd ~/termux-test
           git pull
           pkill -f webka.py || true
-          python webka.py &
+          nohup python webka.py > webka.log 2>&1 &
