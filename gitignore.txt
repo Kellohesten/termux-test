@@ -1,0 +1,8 @@
+__pycache__/
+*.pyc
+*.log
+public_url.txt
+ngrok_url.txt
+.ssh/
+*.db
+.env
