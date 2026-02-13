@@ -1,62 +1,106 @@
 #!/usr/bin/env python3
 
-import os
-import sys
-import subprocess
+"""
+Telegram Uptime Bot for Termux
+Отвечает на вопрос, сколько работает
+"""
+
+import telebot
 import time
 from datetime import datetime
+import os
+import sys
 
-VERSION = "1.0.0"
-LAST_UPDATE = "2026-02-13"
+# ============= НАСТРОЙКИ =============
+TOKEN = "YOUR_BOT_TOKEN_HERE"  # Вставь свой токен от @BotFather
 
-def main():
-    print(f"🤖 Termux Uptime Bot v{VERSION}")
-    print(f"📅 Последнее обновление: {LAST_UPDATE}")
-    print(f"🕐 Время запуска: {datetime.now()}")
-    
-    # Проверка обновлений при старте
-    if os.environ.get('AUTO_UPDATE') == 'true':
-        check_for_updates()
-    
-    # Запуск бота
-    run_bot()
+# Время запуска бота
+START_TIME = time.time()
+START_DATETIME = datetime.now()
 
-def check_for_updates():
-    """Проверяет обновления на GitHub"""
-    try:
-        print("🔄 Проверка обновлений...")
-        result = subprocess.run(['git', 'pull'], 
-                              capture_output=True, text_text=True)
-        if 'Already up to date' not in result.stdout:
-            print("✅ Обновление установлено! Перезапуск...")
-            os.execl(sys.executable, sys.executable, *sys.argv)
-        else:
-            print("✅ Версия актуальна")
-    except Exception as e:
-        print(f"❌ Ошибка проверки обновлений: {e}")
+bot = telebot.TeleBot(TOKEN)
 
-def run_bot():
-    """Запускает основную логику бота"""
-    from flask import Flask, render_template_string, jsonify
-    import threading
-    import socket
-    import re
+# ============= ФУНКЦИИ =============
+def get_uptime():
+    """Возвращает отформатированное время работы"""
+    seconds = int(time.time() - START_TIME)
     
-    app = Flask(__name__)
-    START_TIME = time.time()
+    days = seconds // 86400
+    hours = (seconds % 86400) // 3600
+    minutes = (seconds % 3600) // 60
+    secs = seconds % 60
     
-    INDEX_HTML = '''...'''  # ваш HTML код
-    
-    @app.route('/')
-    def index():
-        return render_template_string(INDEX_HTML)
-    
-    @app.route('/api/uptime')
-    def uptime():
-        seconds = int(time.time() - START_TIME)
-        return jsonify({'uptime': f"{seconds//3600:02d}:{(seconds%3600)//60:02d}:{seconds%60:02d}"})
-    
-    app.run(host='0.0.0.0', port=5000)
+    if days > 0:
+        return f"{days}д {hours:02d}:{minutes:02d}:{secs:02d}"
+    else:
+        return f"{hours:02d}:{minutes:02d}:{secs:02d}"
 
+# ============= ОБРАБОТЧИКИ КОМАНД =============
+@bot.message_handler(commands=['start', 'help'])
+def send_welcome(message):
+    """Приветственное сообщение"""
+    welcome_text = """
+🤖 *Telegram Uptime Bot*
+
+Я простой бот, который считает, сколько времени прошло с моего запуска.
+
+*Команды:*
+/uptime — сколько я работаю
+/time — то же самое
+/start — это сообщение
+
+*Или просто спроси:* "сколько работаешь?"
+    """
+    bot.reply_to(message, welcome_text, parse_mode='Markdown')
+
+@bot.message_handler(commands=['uptime', 'time'])
+def send_uptime(message):
+    """Отправляет аптайм"""
+    uptime = get_uptime()
+    response = f"""
+⏱ *Бот работает:* {uptime}
+
+🕐 Запущен: {START_DATETIME.strftime('%d.%m.%Y %H:%M:%S')}
+    """
+    bot.reply_to(message, response, parse_mode='Markdown')
+
+@bot.message_handler(func=lambda message: True)
+def handle_message(message):
+    """Обработка текстовых сообщений"""
+    text = message.text.lower()
+    
+    # Отвечаем на вопросы о времени работы
+    if any(word in text for word in ['сколько', 'работаешь', 'работает', 'запущен', 'время', 'uptime', 'аптайм']):
+        uptime = get_uptime()
+        response = f"""
+Я работаю уже *{uptime}* 🕐
+
+Запустился: {START_DATETIME.strftime('%d.%m.%Y %H:%M:%S')}
+        """
+        bot.reply_to(message, response, parse_mode='Markdown')
+    
+    # Отвечаем на приветствия
+    elif any(word in text for word in ['привет', 'здравствуй', 'хай', 'hello', 'hi', 'прив']):
+        bot.reply_to(message, "Привет! 👋\nУзнай мой аптайм — /uptime")
+    
+    # На всё остальное
+    else:
+        bot.reply_to(message, "Напиши /uptime чтобы узнать, сколько я работаю")
+
+# ============= ЗАПУСК =============
 if __name__ == '__main__':
-    main()
+    print("\n" + "="*50)
+    print("🤖 TELEGRAM UPTIME BOT")
+    print("="*50)
+    print(f"\n📅 Запущен: {START_DATETIME.strftime('%d.%m.%Y %H:%M:%S')}")
+    print(f"🆔 Бот: @{bot.user.username if bot.user else '...'}")
+    print(f"\n🚀 Бот работает! Нажми Ctrl+C для остановки")
+    print("="*50 + "\n")
+    
+    try:
+        bot.infinity_polling()
+    except KeyboardInterrupt:
+        print("\n👋 Бот остановлен")
+        print(f"⏱ Всего проработал: {get_uptime()}")
+    except Exception as e:
+        print(f"❌ Ошибка: {e}")
