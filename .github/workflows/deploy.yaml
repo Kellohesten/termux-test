@@ -1,48 +1,23 @@
 name: Deploy to Termux
-
 on:
   push:
-    branches: [ main, master ]
-  workflow_dispatch:
+    branches: [ main ]
 
 jobs:
   deploy:
     runs-on: ubuntu-latest
-    
     steps:
-    - name: Checkout repository
-      uses: actions/checkout@v3
+    - uses: actions/checkout@v3
     
-    - name: Setup SSH
-      run: |
-        mkdir -p ~/.ssh
-        echo "${{ secrets.TERMUX_SSH_KEY }}" > ~/.ssh/id_rsa
-        chmod 600 ~/.ssh/id_rsa
-        # ИСПРАВЛЕНО: порт передаётся правильно
-        ssh-keyscan -p ${{ secrets.TERMUX_PORT }} ${{ secrets.TERMUX_HOST }} >> ~/.ssh/known_hosts
-    
-    - name: Deploy to Termux
-      run: |
-        # Создаём папку проекта
-        ssh -p ${{ secrets.TERMUX_PORT }} ${{ secrets.TERMUX_USER }}@${{ secrets.TERMUX_HOST }} \
-          "mkdir -p ~/termux-test"
-        
-        # Копируем файлы
-        scp -P ${{ secrets.TERMUX_PORT }} \
-          webka.py \
-          requirements.txt \
-          setup.sh \
-          ${{ secrets.TERMUX_USER }}@${{ secrets.TERMUX_HOST }}:~/termux-test/
-        
-        # Устанавливаем зависимости и запускаем
-        ssh -p ${{ secrets.TERMUX_PORT }} ${{ secrets.TERMUX_USER }}@${{ secrets.TERMUX_HOST }} \
-          "cd ~/termux-test && \
-           pip install -r requirements.txt && \
-           pkill -f webka.py || true && \
-           nohup python webka.py > webka.log 2>&1 &"
-    
-    - name: Health check
-      run: |
-        sleep 5
-        ssh -p ${{ secrets.TERMUX_PORT }} ${{ secrets.TERMUX_USER }}@${{ secrets.TERMUX_HOST }} \
-          "pgrep -f webka.py && echo '✅ Деплой успешен!' || echo '❌ Ошибка запуска'"
+    - name: Deploy via SSH
+      uses: appleboy/ssh-action@v1.0.3
+      with:
+        host: ${{ secrets.PUBLIC_IP }}     # Внешний IP роутера
+        port: ${{ secrets.PORT }}           # Проброшенный порт (например 8022)
+        username: ${{ secrets.USERNAME }}
+        key: ${{ secrets.SSH_PRIVATE_KEY }}
+        script: |
+          cd ~/termux-test
+          git pull
+          pkill -f webka.py || true
+          python webka.py &
