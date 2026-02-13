@@ -12,7 +12,7 @@ import os
 import sys
 
 # ============= НАСТРОЙКИ =============
-TOKEN = "39bOwNGsbqpawcV8KULypLofGZD_2se8HHW5QvhtgPY1fSxgX"  # Вставь свой токен от @BotFather
+TOKEN = "8366731711:AAHl4NHWDoJ8xUTvEFv1JOEd1J0dA2kzIg8"  # Вставь свой токен от @BotFather
 
 # Время запуска бота
 START_TIME = time.time()
