@@ -1,0 +1,9 @@
+SECRET_KEY=your-super-secret-key-change-this
+
+# Для разработки можно оставить пустым - будет использоваться локальная БД
+# Для продакшена укажи путь, например:
+# DATABASE_URL=sqlite:////var/lib/ourapp/data.db
+
+# Режим Flask (development/production)
+FLASK_ENV=development
+FLASK_DEBUG=1
