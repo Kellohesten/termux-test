@@ -24,16 +24,16 @@ pip3 install -r requirements.txt --upgrade
 
 # Ищем и убиваем старый процесс веб-приложения
 echo -e "${GREEN}Останавливаем старое приложение...${NC}"
-pkill -f "python3.*webka.py"
+pkill -f "python3.*run.py"
 sleep 3
 
 # Запускаем новое приложение через screen
 echo -e "${GREEN}Запускаем новое приложение...${NC}"
-screen -dmS web-app python3 webka.py
+screen -dmS web-app python3 run.py
 
 # Проверяем, запустилось ли
 sleep 3
-if pgrep -f "python3.*webka.py" > /dev/null; then
+if pgrep -f "python3.*run.py" > /dev/null; then
     echo -e "${GREEN}✅ Веб-приложение успешно запущено!${NC}"
     echo -e "🌐 Открыть в браузере: http://$(curl -s ifconfig.me):5000"
     echo -e "📊 API: http://$(curl -s ifconfig.me):5000/api"
