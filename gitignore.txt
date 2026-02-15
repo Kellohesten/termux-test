@@ -4,5 +4,18 @@ __pycache__/
 public_url.txt
 ngrok_url.txt
 .ssh/
+
+# Базы данных
 *.db
+*.sqlite
+*.sqlite3
+instance/
+
+# Локальные конфиги
 .env
+.env.local
+.env.*
+
+# Папки с данными
+/instance/
+/var/
