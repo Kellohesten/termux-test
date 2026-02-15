@@ -141,7 +141,7 @@ HTML_TEMPLATE = """
     
     <script>
         // Автообновление каждые 5 секунд
-        setTimeout(() => location.reload(), 5000);
+        setTimeout(() => location.reload(), 1000);
     </script>
 </body>
 </html>
