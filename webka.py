@@ -1,106 +1,219 @@
 #!/usr/bin/env python3
-
 """
-Telegram Uptime Bot for Termux
-Отвечает на вопрос, сколько работает
+Простое веб-приложение, показывающее время работы (uptime) процесса
 """
 
-import telebot
+from flask import Flask, jsonify, render_template_string
+import datetime
 import time
-from datetime import datetime
 import os
-import sys
+import platform
+import socket
 
-# ============= НАСТРОЙКИ =============
-TOKEN = "8366731711:AAHl4NHWDoJ8xUTvEFv1JOEd1J0dA2kzIg8"  # Вставь свой токен от @BotFather
+app = Flask(__name__)
 
-# Время запуска бота
-START_TIME = time.time()
-START_DATETIME = datetime.now()
+# Время запуска приложения (фиксируется при старте)
+start_time = time.time()
+start_datetime = datetime.datetime.now()
 
-bot = telebot.TeleBot(TOKEN)
-
-# ============= ФУНКЦИИ =============
-def get_uptime():
-    """Возвращает отформатированное время работы"""
-    seconds = int(time.time() - START_TIME)
+# HTML шаблон прямо в коде (для простоты)
+HTML_TEMPLATE = """
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Uptime Monitor</title>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <style>
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            margin: 0;
+            padding: 20px;
+            min-height: 100vh;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+        .container {
+            background: rgba(255, 255, 255, 0.1);
+            backdrop-filter: blur(10px);
+            border-radius: 20px;
+            padding: 40px;
+            box-shadow: 0 8px 32px 0 rgba(31, 38, 135, 0.37);
+            border: 1px solid rgba(255, 255, 255, 0.18);
+            width: 100%;
+            max-width: 800px;
+        }
+        h1 {
+            text-align: center;
+            margin-top: 0;
+            font-size: 2.5em;
+            border-bottom: 2px solid rgba(255,255,255,0.3);
+            padding-bottom: 20px;
+        }
+        .uptime {
+            font-size: 3em;
+            text-align: center;
+            margin: 30px 0;
+            font-weight: bold;
+            text-shadow: 2px 2px 4px rgba(0,0,0,0.3);
+        }
+        .info-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            gap: 20px;
+            margin-top: 30px;
+        }
+        .info-card {
+            background: rgba(255, 255, 255, 0.15);
+            border-radius: 10px;
+            padding: 20px;
+            text-align: center;
+        }
+        .info-label {
+            font-size: 0.9em;
+            opacity: 0.8;
+            margin-bottom: 10px;
+        }
+        .info-value {
+            font-size: 1.2em;
+            font-weight: bold;
+        }
+        .footer {
+            margin-top: 40px;
+            text-align: center;
+            font-size: 0.9em;
+            opacity: 0.7;
+        }
+        .refresh-btn {
+            background: rgba(255, 255, 255, 0.2);
+            border: none;
+            color: white;
+            padding: 10px 30px;
+            border-radius: 25px;
+            font-size: 1.1em;
+            cursor: pointer;
+            transition: background 0.3s;
+            margin-top: 20px;
+        }
+        .refresh-btn:hover {
+            background: rgba(255, 255, 255, 0.3);
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>🕒 Uptime Monitor</h1>
+        
+        <div class="uptime" id="uptime">
+            {{ uptime }}
+        </div>
+        
+        <div class="info-grid">
+            <div class="info-card">
+                <div class="info-label">Запущено</div>
+                <div class="info-value">{{ start_time_str }}</div>
+            </div>
+            <div class="info-card">
+                <div class="info-label">Версия Python</div>
+                <div class="info-value">{{ python_version }}</div>
+            </div>
+            <div class="info-card">
+                <div class="info-label">Хост</div>
+                <div class="info-value">{{ hostname }}</div>
+            </div>
+            <div class="info-card">
+                <div class="info-label">Платформа</div>
+                <div class="info-value">{{ platform }}</div>
+            </div>
+        </div>
+        
+        <div style="text-align: center;">
+            <button class="refresh-btn" onclick="location.reload()">🔄 Обновить</button>
+        </div>
+        
+        <div class="footer">
+            PID: {{ pid }} | Запросов: {{ request_count }}
+        </div>
+    </div>
     
-    days = seconds // 86400
-    hours = (seconds % 86400) // 3600
-    minutes = (seconds % 3600) // 60
-    secs = seconds % 60
+    <script>
+        // Автообновление каждые 5 секунд
+        setTimeout(() => location.reload(), 5000);
+    </script>
+</body>
+</html>
+"""
+
+# Счетчик запросов
+request_counter = 0
+
+def format_uptime(seconds):
+    """Форматирует секунды в читаемый вид"""
+    days = int(seconds // 86400)
+    hours = int((seconds % 86400) // 3600)
+    minutes = int((seconds % 3600) // 60)
+    seconds = int(seconds % 60)
     
+    parts = []
     if days > 0:
-        return f"{days}д {hours:02d}:{minutes:02d}:{secs:02d}"
-    else:
-        return f"{hours:02d}:{minutes:02d}:{secs:02d}"
-
-# ============= ОБРАБОТЧИКИ КОМАНД =============
-@bot.message_handler(commands=['start', 'help'])
-def send_welcome(message):
-    """Приветственное сообщение"""
-    welcome_text = """
-🤖 *Telegram Uptime Bot*
-
-Я простой бот, который считает, сколько времени прошло с моего запуска.
-
-*Команды:*
-/uptime — сколько я работаю TEST
-/time — то же самое
-/start — это сообщение
-
-*Или просто спроси:* "сколько работаешь?"
-    """
-    bot.reply_to(message, welcome_text, parse_mode='Markdown')
-
-@bot.message_handler(commands=['uptime', 'time'])
-def send_uptime(message):
-    """Отправляет аптайм"""
-    uptime = get_uptime()
-    response = f"""
-⏱ *Бот работает:* {uptime}
-
-🕐 Запущен: {START_DATETIME.strftime('%d.%m.%Y %H:%M:%S')}
-    """
-    bot.reply_to(message, response, parse_mode='Markdown')
-
-@bot.message_handler(func=lambda message: True)
-def handle_message(message):
-    """Обработка текстовых сообщений"""
-    text = message.text.lower()
+        parts.append(f"{days} д")
+    if hours > 0 or days > 0:
+        parts.append(f"{hours} ч")
+    if minutes > 0 or hours > 0 or days > 0:
+        parts.append(f"{minutes} мин")
+    parts.append(f"{seconds} сек")
     
-    # Отвечаем на вопросы о времени работы
-    if any(word in text for word in ['сколько', 'работаешь', 'работает', 'запущен', 'время', 'uptime', 'аптайм']):
-        uptime = get_uptime()
-        response = f"""
-Я работаю уже *{uptime}* 🕐
+    return " ".join(parts)
 
-Запустился: {START_DATETIME.strftime('%d.%m.%Y %H:%M:%S')}
-        """
-        bot.reply_to(message, response, parse_mode='Markdown')
+@app.route('/')
+def index():
+    """Главная страница с аптаймом"""
+    global request_counter
+    request_counter += 1
     
-    # Отвечаем на приветствия
-    elif any(word in text for word in ['привет', 'здравствуй', 'хай', 'hello', 'hi', 'прив']):
-        bot.reply_to(message, "Привет! 👋\nУзнай мой аптайм — /uptime")
+    current_time = time.time()
+    uptime_seconds = current_time - start_time
     
-    # На всё остальное
-    else:
-        bot.reply_to(message, "Напиши /uptime чтобы узнать, сколько я работаю")
+    return render_template_string(
+        HTML_TEMPLATE,
+        uptime=format_uptime(uptime_seconds),
+        start_time_str=start_datetime.strftime("%Y-%m-%d %H:%M:%S"),
+        python_version=platform.python_version(),
+        hostname=socket.gethostname(),
+        platform=platform.platform(),
+        pid=os.getpid(),
+        request_count=request_counter
+    )
 
-# ============= ЗАПУСК =============
+@app.route('/api')
+def api():
+    """API endpoint возвращает JSON с аптаймом"""
+    uptime_seconds = time.time() - start_time
+    
+    return jsonify({
+        'uptime_seconds': uptime_seconds,
+        'uptime_human': format_uptime(uptime_seconds),
+        'start_time': start_datetime.isoformat(),
+        'pid': os.getpid(),
+        'python_version': platform.python_version(),
+        'hostname': socket.gethostname()
+    })
+
+@app.route('/health')
+def health():
+    """Health check для мониторинга"""
+    return jsonify({'status': 'ok', 'uptime': time.time() - start_time})
+
 if __name__ == '__main__':
-    print("\n" + "="*50)
-    print("🤖 TELEGRAM UPTIME BOT")
-    print("="*50)
-    print(f"\n📅 Запущен: {START_DATETIME.strftime('%d.%m.%Y %H:%M:%S')}")
-    print(f"🆔 Бот: @{bot.user.username if bot.user else '...'}")
-    print(f"\n🚀 Бот работает! Нажми Ctrl+C для остановки")
-    print("="*50 + "\n")
+    print(f"🚀 Сервер запущен!")
+    print(f"📡 PID: {os.getpid()}")
+    print(f"🌐 Адрес: http://0.0.0.0:5000")
+    print(f"📊 Uptime будет считаться с {start_datetime}")
+    print(f"🔍 Для проверки API: http://0.0.0.0:5000/api")
+    print(f"⏹️ Остановка: Ctrl+C")
     
-    try:
-        bot.infinity_polling()
-    except KeyboardInterrupt:
-        print("\n👋 Бот остановлен")
-        print(f"⏱ Всего проработал: {get_uptime()}")
-    except Exception as e:
-        print(f"❌ Ошибка: {e}")
+    # Запускаем сервер
+    app.run(host='0.0.0.0', port=5000, debug=False)
